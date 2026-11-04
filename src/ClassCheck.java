@@ -69,7 +69,8 @@ public class ClassCheck {
         }
 
         // start menu
-        String[] startOptions = {"Create New Class Record", "Open Existing Class Record", "Exit"};
+        String[] startOptions = {"Create New Class Record", "Open Existing Class Record",
+            "Delete Class Record", "Exit"};
         boolean running = true;
         while (running) {
             int choice = InputHelper.choose("CLASSCHECK",
@@ -79,6 +80,8 @@ public class ClassCheck {
                 createClassRecord(db);
             } else if (choice == 1) {
                 running = openClassRecord(db); // false when the user chose Exit Program
+            } else if (choice == 2) {
+                deleteClassRecord(db);
             } else {
                 running = false; // Exit button or window closed
             }
@@ -112,6 +115,33 @@ public class ClassCheck {
                 InputHelper.show("Class record \"" + cr.name + "\" created.\n"
                         + "Next, add the students to the class list.");
                 new StudentEditor(db, cr).open();
+            }
+        }
+    }
+
+    /* lets the user pick a class record from the list and delete it (after asking YES / NO).
+     * the students, attendance, points and quizzes of that class are deleted too. */
+    private static void deleteClassRecord(Database db) {
+        ArrayList<ClassRecord> classes = db.getClasses();
+
+        if (classes.size() == 0) {
+            InputHelper.show("There are no class records to delete.");
+        } else {
+            String[] labels = new String[classes.size()];
+            for (int i = 0; i < classes.size(); i++) {
+                labels[i] = classes.get(i).name;
+            }
+            int index = InputHelper.pickIndex("DELETE CLASS RECORD", "Select the class record to delete:", labels);
+            if (index != -1) {
+                ClassRecord cr = classes.get(index);
+                boolean sure = InputHelper.askYesNo("Delete the class record \"" + cr.name + "\"?\n\n"
+                        + "This also deletes its " + db.countStudents(cr.id) + " student(s) and all their\n"
+                        + "attendance, points and quiz records.\n\nThis cannot be undone.");
+                if (sure) {
+                    if (db.deleteClass(cr.id)) {
+                        InputHelper.show("Class record \"" + cr.name + "\" was deleted.");
+                    }
+                }
             }
         }
     }
@@ -719,6 +749,11 @@ class Database {
             showError(e);
         }
         return list;
+    }
+
+    // deletes a class record; its students, attendance, points and quizzes go with it (CASCADE)
+    public boolean deleteClass(int classId) {
+        return run("DELETE FROM classes WHERE id = ?", classId);
     }
 
     // ---------- students ----------
