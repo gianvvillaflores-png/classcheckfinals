@@ -32,22 +32,6 @@ import javax.swing.JTextField; // one-line text box
 import javax.swing.ListSelectionModel; // controls how rows are selected in a table
 import javax.swing.table.DefaultTableModel; // the data inside a JTable
 
-/*
- * CLASSCHECK (Laragon / MySQL version)
- *
- * REQUIREMENTS
- * 1. Laragon running with MySQL started (click "Start All").
- * 2. The MySQL JDBC driver (.jar) on the classpath, e.g. mysql-connector-j-8.x.x.jar
- *    (the MariaDB driver, mariadb-java-client-3.x.x.jar, also works).
- *
- * Connection settings are the Laragon defaults (host localhost, port 3306,
- * user root, empty password). They are constants at the top of the Database class.
- * The database "classcheck" and its tables are created automatically.
- *
- * Compile: javac ClassCheck.java
- * Run (Windows): java -cp ".;mysql-connector-j-8.4.0.jar" ClassCheck
- * Run (Mac/Linux): java -cp ".:mysql-connector-j-8.4.0.jar" ClassCheck
- */
 public class ClassCheck {
 
     /* program entry point. opens the database, then shows the start menu
