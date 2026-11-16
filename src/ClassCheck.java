@@ -223,20 +223,16 @@ public class ClassCheck {
     }
 }
 
-/**
- * helper methods for input, messages, buttons and tables.
- * all methods are static, so they are called as InputHelper.method().
- */
+/*helper methods for input, messages, buttons and tables.
+ * all methods are static, so they are called as InputHelper.method(). */
 class InputHelper {
 
     // Constant (uppercase). Returned by readInt when the user presses Cancel.
     // It has 10 digits, so isInteger() never accepts it as typed input.
     public static final int CANCELLED = -2147483648;
 
-    /**
-     * shows an input box and returns the text typed (trimmed)
-     * returns null if the user pressed Cancel.
-     */
+    /*shows an input box and returns the text typed (trimmed)
+     * returns null if the user pressed Cancel.*/
     public static String readText(String message) {
         String input = JOptionPane.showInputDialog(message);
         if (input != null) {
@@ -245,10 +241,8 @@ class InputHelper {
         return input;
     }
 
-    /**
-     * checks whether a String is a whole number (an optional leading minus is allowed)
-     * only up to 9 digits are accepted so the value always fits in an int
-     */
+    /*checks whether a String is a whole number (an optional leading minus is allowed)
+     * only up to 9 digits are accepted so the value always fits in an int */
     public static boolean isInteger(String text) {
         boolean valid = true;
         int start = 0;
@@ -274,10 +268,8 @@ class InputHelper {
         return valid;
     }
 
-    /**
-     * keeps asking until a valid whole number is entered.
-     * returns CANCELLED if the user pressed Cancel.
-     */
+    /* keeps asking until a valid whole number is entered.
+     * returns CANCELLED if the user pressed Cancel.*/
     public static int readInt(String message) {
         int result = 0;
         boolean done = false;
@@ -319,19 +311,15 @@ class InputHelper {
         JOptionPane.showMessageDialog(parent, message);
     }
 
-    /**
-     * shows a window with one button per option (stacked vertically).
-     * returns the index of the clicked button, or -1 if the window was closed.
-     */
+    /* shows a window with one button per option (stacked vertically).
+     * returns the index of the clicked button, or -1 if the window was closed.*/
     public static int choose(String title, String message, String[] options) {
         ChoiceDialog dialog = new ChoiceDialog(title, message, options);
         return dialog.showDialog();
     }
 
-    /**
-     * shows a drop-down list and returns the index of the chosen item.
-     * returns -1 if the user pressed Cancel.
-     */
+    /* shows a drop-down list and returns the index of the chosen item.
+     * returns -1 if the user pressed Cancel.*/
     public static int pickIndex(String title, String message, String[] labels) {
         Object picked = JOptionPane.showInputDialog(null, message, title,
                 JOptionPane.QUESTION_MESSAGE, null, labels, labels[0]);
@@ -417,10 +405,8 @@ class InputHelper {
     }
 }
 
-/**
- * a small window with one big button per option (the easier replacement for typing a number).
- * ChoiceDialog is a JDialog and also an ActionListener, so it reacts to its own buttons.
- */
+/* a small window with one big button per option (the easier replacement for typing a number).
+ * ChoiceDialog is a JDialog and also an ActionListener, so it reacts to its own buttons. */
 class ChoiceDialog extends JDialog implements ActionListener {
 
     private int selected = -1; // index of the clicked button, -1 if none
@@ -493,10 +479,8 @@ class Person {
     }
 }
 
-/**
- * Student is a child class of Person (INHERITANCE)
- * it inherits the name and adds the database id and the total points
- */
+/* Student is a child class of Person (INHERITANCE)
+ * it inherits the name and adds the database id and the total points */
 class Student extends Person {
 
     public int id;     // primary key in the database
@@ -550,10 +534,8 @@ class Quiz {
     }
 }
 
-/**
- * all the database work is done here (Laragon MySQL).
- * other classes never write SQL; they only call these methods.
- */
+/* all the database work is done here (Laragon MySQL).
+ * other classes never write SQL; they only call these methods. */
 class Database {
 
     // connection settings (Laragon defaults). Change them here if yours are different.
@@ -914,11 +896,9 @@ class Database {
     }
 }
 
-/**
- * the TABLE (inventory style) window for the class list.
+/* the TABLE (inventory style) window for the class list.
  * the user can add, edit and remove students; the list is always sorted
- * alphabetically by last name because it is reloaded from the database.
- */
+ * alphabetically by last name because it is reloaded from the database. */
 class StudentEditor extends JDialog implements ActionListener {
 
     private Database db;
@@ -1022,10 +1002,8 @@ class StudentEditor extends JDialog implements ActionListener {
         return panel;
     }
 
-    /**
-     * asks for the name of a new student. "Save and Add Another" keeps the form
-     * coming back so a whole class can be typed in quickly.
-     */
+    /* asks for the name of a new student. "Save and Add Another" keeps the form
+     * coming back so a whole class can be typed in quickly. */
     private void addStudent() {
         String last = "";
         String first = "";
@@ -1125,10 +1103,8 @@ class StudentEditor extends JDialog implements ActionListener {
     }
 }
 
-/**
- * marks the students PRESENT or ABSENT for today, based on the class list.
- * marking again on the same day replaces the earlier marks.
- */
+/* marks the students PRESENT or ABSENT for today, based on the class list.
+ * marking again on the same day replaces the earlier marks. */
 class AttendanceManager {
 
     private Database db;
@@ -1198,12 +1174,10 @@ class AttendanceManager {
     }
 }
 
-/**
- * recitation randomizer uses a separate pool taken from the class list,
+/*recitation randomizer uses a separate pool taken from the class list,
  * so removing a student from the pool never deletes them from the class list.
  * the pool holds the students marked PRESENT today (or the whole class if
- * attendance was not taken and the user agrees).
- */
+ * attendance was not taken and the user agrees).*/
 class Recitation {
 
     private Database db;
@@ -1243,10 +1217,8 @@ class Recitation {
         built = true;
     }
 
-    /**
-     * picks a random student from the pool, asks whether to remove that student
-     * from the pool, and repeats while the user wants to pick another
-     */
+    /* picks a random student from the pool, asks whether to remove that student
+     * from the pool, and repeats while the user wants to pick another */
     public void start() {
         if (!built) {
             useAll = false;
@@ -1297,10 +1269,8 @@ class Recitation {
     }
 }
 
-/**
- * manage points: add points to a student and view everyone's points.
- * every addition is saved with its date, so daily and overall totals are possible.
- */
+/* manage points: add points to a student and view everyone's points.
+ * every addition is saved with its date, so daily and overall totals are possible. */
 class PointsManager {
 
     private Database db;
@@ -1355,11 +1325,9 @@ class PointsManager {
     }
 }
 
-/**
- * record quiz scores
+/* record quiz scores
  * the overall (maximum) score is entered ONCE per quiz, then only PRESENT students
- * are scored; absent students automatically get 0. Many quizzes can be saved.
- */
+ * are scored; absent students automatically get 0. Many quizzes can be saved. */
 class QuizManager {
 
     private Database db;
@@ -1368,10 +1336,8 @@ class QuizManager {
         this.db = db;
     }
 
-    /**
-     * asks for the quiz title and overall score, then for a score for each present student.
-     * nothing is saved if the user cancels.
-     */
+    /* asks for the quiz title and overall score, then for a score for each present student.
+     * nothing is saved if the user cancels. */
     public void record(ClassRecord cr) {
         ArrayList<Student> students = db.getStudents(cr.id);
         String today = InputHelper.today();
@@ -1448,9 +1414,7 @@ class QuizManager {
     }
 }
 
-/**
- * view the record of ONE DAY (today or any date that has records) or the OVERALL record
- */
+// view the record of ONE DAY (today or any date that has records) or the OVERALL record
 class RecordViewer {
 
     private Database db;
@@ -1532,11 +1496,9 @@ class RecordViewer {
     }
 }
 
-/**
- * generates the Final Class Record from the data saved in the database
+/* generates the Final Class Record from the data saved in the database
  * (attendance, points and quizzes of every student). It can also be saved as a CSV file
- * that opens in Excel.
- */
+ * that opens in Excel. */
 class FinalRecord {
 
     private Database db;
