@@ -157,7 +157,6 @@ public class ClassCheck {
 
         // objects shared by all features of this class record
         AttendanceManager attendance = new AttendanceManager(db);
-        attendance.resetCheckCount(); // reset for new session
         Recitation recitation = new Recitation(db, cr);
         PointsManager pointsManager = new PointsManager(db);
         QuizManager quizManager = new QuizManager(db);
@@ -182,11 +181,12 @@ public class ClassCheck {
                     + "\n\nChoose an option:", options);
 
             if (choice == -1) {
-                choice = 7; // window closed: same as Back
+                choice = 8; // window closed: same as Back
             }
 
-            // options 0 to 3 and 6 need students in the class list
-            boolean needsStudents = choice <= 3 || choice == 6;
+            // options 0 to 4 (attendance, second check, recitation, points, quiz)
+            // and 7 (final record) need students in the class list
+            boolean needsStudents = choice <= 4 || choice == 7;
             if (needsStudents && db.countStudents(cr.id) == 0) {
                 InputHelper.show("There are no students in this class yet.\n"
                         + "Choose \"Edit Class List\" to add students.");
@@ -225,7 +225,7 @@ public class ClassCheck {
             }
         } while (choice != 8 && choice != 9);
 
-        return choice != 8;
+        return choice != 9; // false only when the user chose Exit Program
     }
 }
 
@@ -791,13 +791,14 @@ class Database {
 
     // ---------- attendance ----------
 
-    // saves "Present" or "Absent" for a student on a date (replaces an older mark; REPLACE INTO is MySQL's way)
+    // saves "Present", "Absent" or "Late" for a student on a date
+    // (replaces an older mark; REPLACE INTO is MySQL's way)
     public boolean setAttendance(int studentId, String date, String status) {
         return run("REPLACE INTO attendance (student_id, date, status) VALUES (?, ?, ?)",
                 studentId, date, status);
     }
 
-    // returns "Present", "Absent", or null if the student was not marked on that date
+    // returns "Present", "Absent", "Late", or null if the student was not marked on that date
     public String getStatus(int studentId, String date) {
         ArrayList<String> result = getStrings(
                 "SELECT status FROM attendance WHERE student_id = ? AND date = ?", studentId, date);
@@ -815,7 +816,7 @@ class Database {
         return count > 0;
     }
 
-    // how many days the student has this status ("Present" or "Absent")
+    // how many days the student has this status ("Present", "Absent" or "Late")
     public int countStatus(int studentId, String status) {
         return getInt("SELECT COUNT(*) FROM attendance WHERE student_id = ? AND status = ?",
                 0, studentId, status);
@@ -1110,31 +1111,25 @@ class StudentEditor extends JDialog implements ActionListener {
 }
 
 /* marks the students PRESENT or ABSENT for today, based on the class list.
- * marking again on the same day replaces the earlier marks. */
+ * marking again on the same day replaces the earlier marks.
+ * a second check can then change the absent students to LATE. */
 class AttendanceManager {
 
     private Database db;
-    private int checkCount = 0; // number of attendance checks in this session
+    private int checkCount = 0; // number of attendance checks done in this class menu
 
     public AttendanceManager(Database db) {
         this.db = db;
     }
 
-    /* reset the check count (called when a new session starts) */
-    public void resetCheckCount() {
-        checkCount = 0;
+    // true if the status means the student came to class (Present or Late)
+    // other classes (Recitation, QuizManager) use this so Late is treated like Present
+    public static boolean isHere(String status) {
+        return "Present".equals(status) || "Late".equals(status);
     }
 
-    public int getCheckCount() {
-        return checkCount;
-    }
-
-    /* marks the students PRESENT or ABSENT for today, based on the class list.
-     * marking again on the same day replaces the earlier marks.
-     * Only shows the number of times attendance has been checked.
-     */
+    // goes through the class list one student at a time with Present / Absent buttons
     public void mark(ClassRecord cr) {
-        // increment the check count
         checkCount++;
 
         ArrayList<Student> students = db.getStudents(cr.id);
@@ -1169,20 +1164,16 @@ class AttendanceManager {
         showSummary(cr, today);
     }
 
-    // lets the user mark all students at once: Absent or Late
-    // (used for the second attendance check)
+    /* the second check: goes through ONLY the students marked Absent, one at a time,
+     * so each one can stay Absent or be changed to Late. */
     public void markAbsentOrLate(ClassRecord cr) {
-        // increment the check count
-        checkCount++;
-
         ArrayList<Student> students = db.getStudents(cr.id);
         String today = InputHelper.today();
 
-        // Filter to only show students marked as "Absent" in the first check
+        // keep only the students marked Absent in the first check
         ArrayList<Student> absentStudents = new ArrayList<Student>();
         for (Student s : students) {
-            String status = db.getStatus(s.id, today);
-            if (status != null && status.equals("Absent")) {
+            if ("Absent".equals(db.getStatus(s.id, today))) {
                 absentStudents.add(s);
             }
         }
@@ -1190,37 +1181,31 @@ class AttendanceManager {
         if (absentStudents.size() == 0) {
             InputHelper.show("No students are currently marked as absent.\n"
                     + "No second attendance check needed.");
-            return;
-        }
+        } else {
+            checkCount++; // counted only when a check really happens
+            String[] options = {"Absent", "Late", "Stop"};
 
-        String[] options = {"Absent", "Late", "Stop"};
+            int i = 0;
+            boolean stop = false;
+            while (i < absentStudents.size() && !stop) {
+                Student s = absentStudents.get(i);
 
-        int i = 0;
-        boolean stop = false;
-        while (i < absentStudents.size() && !stop) {
-            Student s = absentStudents.get(i);
-            String current = db.getStatus(s.id, today);
-            String note = "not marked yet";
-            if (current != null) {
-                note = current;
+                int pick = InputHelper.choose("ATTENDANCE - " + cr.name + " (Check " + checkCount + ")",
+                        "Date: " + InputHelper.prettyDate(today) + "\n\n"
+                        + "Student " + (i + 1) + " of " + absentStudents.size() + ":\n"
+                        + s.getFullName() + "\n(Currently: Absent)", options);
+
+                if (pick == 0) {
+                    i++; // stays Absent, nothing to save
+                } else if (pick == 1) {
+                    db.setAttendance(s.id, today, "Late");
+                    i++;
+                } else {
+                    stop = true; // Stop button or window closed
+                }
             }
-
-            int pick = InputHelper.choose("ATTENDANCE - " + cr.name + " (Check " + checkCount + ")",
-                    "Date: " + InputHelper.prettyDate(today) + "\n\n"
-                    + "Student " + (i + 1) + " of " + absentStudents.size() + "\n"
-                    + s.getFullName() + "\n(Currently: " + note + ")", options);
-
-            if (pick == 0) {
-                db.setAttendance(s.id, today, "Absent");
-                i++;
-            } else if (pick == 1) {
-                db.setAttendance(s.id, today, "Late");
-                i++;
-            } else {
-                stop = true; // Stop button or window closed
-            }
+            showSummary(cr, today);
         }
-        showSummary(cr, today);
     }
 
     // shows today's attendance of the whole class in a table
@@ -1228,6 +1213,7 @@ class AttendanceManager {
         ArrayList<Student> students = db.getStudents(cr.id);
         String[][] rows = new String[students.size()][3];
         int present = 0;
+        int late = 0;
         int absent = 0;
 
         for (int i = 0; i < students.size(); i++) {
@@ -1237,6 +1223,8 @@ class AttendanceManager {
                 status = "Not marked";
             } else if (status.equals("Present")) {
                 present++;
+            } else if (status.equals("Late")) {
+                late++;
             } else {
                 absent++;
             }
@@ -1244,15 +1232,16 @@ class AttendanceManager {
         }
 
         InputHelper.showTable("ATTENDANCE\nProgram and Block: " + cr.name + "\nDate: "
-                + InputHelper.prettyDate(date) + "\nPresent: " + present + "   Absent: " + absent
-                + "   Not marked: " + (students.size() - present - absent),
+                + InputHelper.prettyDate(date) + "\nPresent: " + present + "   Late: " + late
+                + "   Absent: " + absent
+                + "   Not marked: " + (students.size() - present - late - absent),
                 new String[]{"No.", "Student", "Status"}, rows);
     }
 }
 
 /*recitation randomizer uses a separate pool taken from the class list,
  * so removing a student from the pool never deletes them from the class list.
- * the pool holds the students marked PRESENT today (or the whole class if
+ * the pool holds the students marked PRESENT or LATE today (or the whole class if
  * attendance was not taken and the user agrees).*/
 class Recitation {
 
@@ -1286,7 +1275,7 @@ class Recitation {
         removed.clear();
         String today = InputHelper.today();
         for (Student s : db.getStudents(cr.id)) {
-            if (useAll || "Present".equals(db.getStatus(s.id, today))) {
+            if (useAll || AttendanceManager.isHere(db.getStatus(s.id, today))) {
                 pool.add(s);
             }
         }
@@ -1300,7 +1289,7 @@ class Recitation {
             useAll = false;
             fillPool();
             if (pool.size() == 0) {
-                boolean wholeClass = InputHelper.askYesNo("No students are marked present today.\n"
+                boolean wholeClass = InputHelper.askYesNo("No students are marked present or late today.\n"
                         + "Use the whole class list instead?");
                 if (wholeClass) {
                     useAll = true;
@@ -1402,7 +1391,7 @@ class PointsManager {
 }
 
 /* record quiz scores
- * the overall (maximum) score is entered ONCE per quiz, then only PRESENT students
+ * the overall (maximum) score is entered ONCE per quiz, then only PRESENT or LATE students
  * are scored; absent students automatically get 0. Many quizzes can be saved. */
 class QuizManager {
 
@@ -1412,7 +1401,7 @@ class QuizManager {
         this.db = db;
     }
 
-    /* asks for the quiz title and overall score, then for a score for each present student.
+    /* asks for the quiz title and overall score, then for a score for each student who came to class.
      * nothing is saved if the user cancels. */
     public void record(ClassRecord cr) {
         ArrayList<Student> students = db.getStudents(cr.id);
@@ -1420,7 +1409,7 @@ class QuizManager {
 
         int presentCount = 0;
         for (Student s : students) {
-            if ("Present".equals(db.getStatus(s.id, today))) {
+            if (AttendanceManager.isHere(db.getStatus(s.id, today))) {
                 presentCount++;
             }
         }
@@ -1428,7 +1417,7 @@ class QuizManager {
         if (!db.attendanceTaken(cr.id, today)) {
             InputHelper.show("Please mark today's attendance first.\nOnly present students take the quiz.");
         } else if (presentCount == 0) {
-            InputHelper.show("No students are marked present today.");
+            InputHelper.show("No students are marked present or late today.");
         } else {
             boolean cancelled = false;
 
@@ -1451,12 +1440,12 @@ class QuizManager {
                 }
             }
 
-            // absent students get 0; present students are asked for a score
+            // absent students get 0; present and late students are asked for a score
             int[] scores = new int[students.size()];
             int i = 0;
             while (i < students.size() && !cancelled) {
                 Student s = students.get(i);
-                if (!"Present".equals(db.getStatus(s.id, today))) {
+                if (!AttendanceManager.isHere(db.getStatus(s.id, today))) {
                     scores[i] = 0;
                 } else {
                     int score = -1;
@@ -1584,24 +1573,26 @@ class FinalRecord {
     }
 
     private String[] headers() {
-        return new String[]{"No.", "Student", "Days Present", "Days Absent", "Attendance %",
-            "Total Points", "Quiz Total", "Quiz %"};
+        return new String[]{"No.", "Student", "Days Present", "Days Late", "Days Absent",
+            "Attendance %", "Total Points", "Quiz Total", "Quiz %"};
     }
 
     // builds one row of text per student
     private String[][] buildRows(ClassRecord cr) {
         ArrayList<Student> students = db.getStudents(cr.id);
-        String[][] rows = new String[students.size()][8];
+        String[][] rows = new String[students.size()][9];
 
         for (int i = 0; i < students.size(); i++) {
             Student s = students.get(i);
 
             int present = db.countStatus(s.id, "Present");
+            int late = db.countStatus(s.id, "Late");
             int absent = db.countStatus(s.id, "Absent");
-            int sessions = present + absent;
+            int sessions = present + late + absent;
             String attendancePct = "N/A";
             if (sessions > 0) {
-                attendancePct = String.format("%.1f%%", present * 100.0 / sessions);
+                // a late student still came to class, so Late counts as attending
+                attendancePct = String.format("%.1f%%", (present + late) * 100.0 / sessions);
             }
 
             int quizScore = db.getQuizScoreTotal(s.id);
@@ -1613,8 +1604,8 @@ class FinalRecord {
                 quizPct = String.format("%.1f%%", quizScore * 100.0 / quizMax);
             }
 
-            rows[i] = new String[]{"" + (i + 1), s.getFullName(), "" + present, "" + absent,
-                attendancePct, "" + s.points, quizTotal, quizPct};
+            rows[i] = new String[]{"" + (i + 1), s.getFullName(), "" + present, "" + late,
+                "" + absent, attendancePct, "" + s.points, quizTotal, quizPct};
         }
         return rows;
     }
