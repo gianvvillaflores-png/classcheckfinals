@@ -157,6 +157,7 @@ public class ClassCheck {
 
         // objects shared by all features of this class record
         AttendanceManager attendance = new AttendanceManager(db);
+        attendance.resetCheckCount(); // reset for new session
         Recitation recitation = new Recitation(db, cr);
         PointsManager pointsManager = new PointsManager(db);
         QuizManager quizManager = new QuizManager(db);
@@ -164,6 +165,7 @@ public class ClassCheck {
         RecordViewer viewer = new RecordViewer(db, finalRecord);
 
         String[] options = {"Mark Attendance (Present / Absent)",
+            "Mark Absent or Late (Second Check)",
             "Recitation Randomizer",
             "Manage Points",
             "Record Quiz Scores",
@@ -195,29 +197,33 @@ public class ClassCheck {
                         recitation.reset(); // attendance changed, rebuild the pool
                         break;
                     case 1:
-                        recitation.start();
+                        attendance.markAbsentOrLate(cr);
+                        recitation.reset(); // attendance changed, rebuild the pool
                         break;
                     case 2:
-                        pointsManager.run(cr);
+                        recitation.start();
                         break;
                     case 3:
-                        quizManager.record(cr);
+                        pointsManager.run(cr);
                         break;
                     case 4:
+                        quizManager.record(cr);
+                        break;
+                    case 5:
                         new StudentEditor(db, cr).open();
                         recitation.reset(); // the class list changed
                         break;
-                    case 5:
+                    case 6:
                         viewer.run(cr);
                         break;
-                    case 6:
+                    case 7:
                         finalRecord.generate(cr);
                         break;
                     default:
-                        break; // 7 = back, 8 = exit
+                        break; // 8 = back, 9 = exit
                 }
             }
-        } while (choice != 7 && choice != 8);
+        } while (choice != 8 && choice != 9);
 
         return choice != 8;
     }
@@ -1108,13 +1114,29 @@ class StudentEditor extends JDialog implements ActionListener {
 class AttendanceManager {
 
     private Database db;
+    private int checkCount = 0; // number of attendance checks in this session
 
     public AttendanceManager(Database db) {
         this.db = db;
     }
 
-    // goes through the class list one student at a time with Present / Absent buttons
+    /* reset the check count (called when a new session starts) */
+    public void resetCheckCount() {
+        checkCount = 0;
+    }
+
+    public int getCheckCount() {
+        return checkCount;
+    }
+
+    /* marks the students PRESENT or ABSENT for today, based on the class list.
+     * marking again on the same day replaces the earlier marks.
+     * Only shows the number of times attendance has been checked.
+     */
     public void mark(ClassRecord cr) {
+        // increment the check count
+        checkCount++;
+
         ArrayList<Student> students = db.getStudents(cr.id);
         String today = InputHelper.today();
         String[] options = {"Present", "Absent", "Stop"};
@@ -1129,7 +1151,7 @@ class AttendanceManager {
                 note = current;
             }
 
-            int pick = InputHelper.choose("ATTENDANCE - " + cr.name,
+            int pick = InputHelper.choose("ATTENDANCE - " + cr.name + " (Check " + checkCount + ")",
                     "Date: " + InputHelper.prettyDate(today) + "\n\n"
                     + "Student " + (i + 1) + " of " + students.size() + ":\n"
                     + s.getFullName() + "\n(Currently: " + note + ")", options);
@@ -1139,6 +1161,60 @@ class AttendanceManager {
                 i++;
             } else if (pick == 1) {
                 db.setAttendance(s.id, today, "Absent");
+                i++;
+            } else {
+                stop = true; // Stop button or window closed
+            }
+        }
+        showSummary(cr, today);
+    }
+
+    // lets the user mark all students at once: Absent or Late
+    // (used for the second attendance check)
+    public void markAbsentOrLate(ClassRecord cr) {
+        // increment the check count
+        checkCount++;
+
+        ArrayList<Student> students = db.getStudents(cr.id);
+        String today = InputHelper.today();
+
+        // Filter to only show students marked as "Absent" in the first check
+        ArrayList<Student> absentStudents = new ArrayList<Student>();
+        for (Student s : students) {
+            String status = db.getStatus(s.id, today);
+            if (status != null && status.equals("Absent")) {
+                absentStudents.add(s);
+            }
+        }
+
+        if (absentStudents.size() == 0) {
+            InputHelper.show("No students are currently marked as absent.\n"
+                    + "No second attendance check needed.");
+            return;
+        }
+
+        String[] options = {"Absent", "Late", "Stop"};
+
+        int i = 0;
+        boolean stop = false;
+        while (i < absentStudents.size() && !stop) {
+            Student s = absentStudents.get(i);
+            String current = db.getStatus(s.id, today);
+            String note = "not marked yet";
+            if (current != null) {
+                note = current;
+            }
+
+            int pick = InputHelper.choose("ATTENDANCE - " + cr.name + " (Check " + checkCount + ")",
+                    "Date: " + InputHelper.prettyDate(today) + "\n\n"
+                    + "Student " + (i + 1) + " of " + absentStudents.size() + "\n"
+                    + s.getFullName() + "\n(Currently: " + note + ")", options);
+
+            if (pick == 0) {
+                db.setAttendance(s.id, today, "Absent");
+                i++;
+            } else if (pick == 1) {
+                db.setAttendance(s.id, today, "Late");
                 i++;
             } else {
                 stop = true; // Stop button or window closed
